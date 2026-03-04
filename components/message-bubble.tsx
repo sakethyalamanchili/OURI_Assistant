@@ -38,7 +38,7 @@ export function MessageBubble({ message }: { message: UIMessage }) {
       {/* Assistant avatar */}
       {!isUser && (
         <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-          OR
+          OURI
         </div>
       )}
 

@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { UIMessage } from "ai"
+import type { ChatMode } from "@/lib/types"
 import { QUICK_ACTIONS } from "@/lib/types"
 import { MessageBubble } from "@/components/message-bubble"
 import {
@@ -13,7 +14,8 @@ import {
   FileText,
   ArrowUp,
   Loader2,
-  GraduationCap,
+  Zap,
+  UserCheck,
 } from "lucide-react"
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
@@ -33,19 +35,26 @@ type ChatInterfaceProps = {
   messages: UIMessage[]
   isLoading: boolean
   onSendMessage: (content: string) => void
+  mode: ChatMode
+  intakeSubmitted?: boolean
+  onGenerateSummary?: () => void
+  summaryGenerated?: boolean
 }
 
 export function ChatInterface({
   messages,
   isLoading,
   onSendMessage,
+  mode,
+  intakeSubmitted,
+  onGenerateSummary,
+  summaryGenerated,
 }: ChatInterfaceProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState("")
 
-  // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [])
@@ -54,7 +63,6 @@ export function ChatInterface({
     scrollToBottom()
   }, [messages, scrollToBottom])
 
-  // Auto-resize textarea
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setInput(e.target.value)
@@ -83,35 +91,31 @@ export function ChatInterface({
     }
   }
 
-  const showStarters = messages.length === 0
+  const showQuickStarters = mode === "quick-lookup" && messages.length === 0
+  const showPersonalizedWaiting = mode === "personalized" && !intakeSubmitted && messages.length === 0
 
   return (
     <div className="flex h-full flex-col">
       {/* Messages area */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto scroll-smooth"
-      >
-        {showStarters ? (
+      <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth">
+        {showQuickStarters ? (
+          /* Quick Lookup empty state */
           <div className="flex h-full flex-col items-center justify-center px-4 py-12 md:px-8">
-            {/* Welcome hero */}
             <div className="mb-10 text-center">
               <div className="relative mx-auto mb-5">
                 <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-primary-foreground shadow-lg shadow-primary/20">
-                  OR
+                  <Zap className="size-7" />
                 </div>
               </div>
               <h2 className="mb-2 text-2xl font-semibold tracking-tight text-foreground text-balance">
-                OURI Research Matchmaking
+                Quick Lookup
               </h2>
               <p className="mx-auto max-w-lg text-sm text-muted-foreground leading-relaxed text-balance">
-                Find faculty mentors, match students to research opportunities,
-                and explore OURI programs -- powered by real-time search of FAU
-                resources.
+                Ask any question about FAU faculty, research opportunities, or OURI programs. 
+                Each question is answered independently with real-time search.
               </p>
             </div>
 
-            {/* Starter grid */}
             <div className="grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {STARTER_SUGGESTIONS.map((action) => (
                 <button
@@ -128,20 +132,25 @@ export function ChatInterface({
                 </button>
               ))}
             </div>
-
-            {/* Mode hint */}
-            <div className="mt-8 flex items-center gap-2 rounded-full bg-accent/50 px-4 py-2">
-              <GraduationCap className="size-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                Switch to{" "}
-                <span className="font-medium text-foreground">
-                  Student Intake
-                </span>{" "}
-                mode in the sidebar for structured matchmaking
-              </span>
+          </div>
+        ) : showPersonalizedWaiting ? (
+          /* Personalized mode - waiting for intake form */
+          <div className="flex h-full flex-col items-center justify-center px-4 py-12 md:px-8">
+            <div className="text-center">
+              <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <UserCheck className="size-7" />
+              </div>
+              <h2 className="mb-2 text-xl font-semibold tracking-tight text-foreground text-balance">
+                Student Session
+              </h2>
+              <p className="mx-auto max-w-md text-sm text-muted-foreground leading-relaxed text-balance">
+                Fill in the intake form above to start a personalized session. The AI will remember 
+                context throughout the conversation and provide tailored recommendations.
+              </p>
             </div>
           </div>
         ) : (
+          /* Chat messages */
           <div className="mx-auto flex max-w-3xl flex-col gap-1 px-4 py-6 md:px-8">
             {messages.map((message) => (
               <MessageBubble key={message.id} message={message} />
@@ -163,60 +172,80 @@ export function ChatInterface({
                 </div>
               )}
 
+            {/* Generate summary button for personalized mode */}
+            {mode === "personalized" &&
+              messages.length >= 2 &&
+              !isLoading &&
+              !summaryGenerated &&
+              onGenerateSummary && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={onGenerateSummary}
+                    className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm transition-all hover:bg-accent hover:text-foreground hover:shadow-md"
+                  >
+                    <FileText className="size-3.5" />
+                    Generate Session Summary
+                  </button>
+                </div>
+              )}
+
             <div ref={bottomRef} />
           </div>
         )}
       </div>
 
-      {/* Input area */}
-      <div className="border-t border-border bg-card/80 px-4 py-3 backdrop-blur-sm md:px-8">
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto max-w-3xl"
-        >
-          <div className="relative flex items-end rounded-xl border border-input bg-background shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-2 focus-within:ring-ring/30">
-            <textarea
-              ref={inputRef}
-              data-chat-input
-              value={input}
-              onChange={handleInputChange}
-              placeholder="Ask about FAU faculty, research, or OURI programs..."
-              onKeyDown={handleKeyDown}
-              rows={1}
-              disabled={isLoading}
-              className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="absolute bottom-2 right-2 flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all duration-150 hover:bg-primary/90 disabled:opacity-30 disabled:hover:bg-primary"
-              aria-label="Send message"
-            >
-              {isLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <ArrowUp className="size-4" />
-              )}
-            </button>
-          </div>
-          <div className="mt-2 flex items-center justify-between px-1">
-            <p className="text-[11px] text-muted-foreground/60">
-              Information retrieved from FAU public resources in real time.
-              Always verify critical details.
-            </p>
-            <p className="hidden text-[11px] text-muted-foreground/40 lg:block">
-              <kbd className="rounded border border-border bg-muted/50 px-1 py-0.5 font-mono text-[10px]">
-                Enter
-              </kbd>{" "}
-              to send,{" "}
-              <kbd className="rounded border border-border bg-muted/50 px-1 py-0.5 font-mono text-[10px]">
-                Shift+Enter
-              </kbd>{" "}
-              for new line
-            </p>
-          </div>
-        </form>
-      </div>
+      {/* Input area - always visible when chat is active */}
+      {(mode === "quick-lookup" || intakeSubmitted) && (
+        <div className="border-t border-border bg-card/80 px-4 py-3 backdrop-blur-sm md:px-8">
+          <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
+            <div className="relative flex items-end rounded-xl border border-input bg-background shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-2 focus-within:ring-ring/30">
+              <textarea
+                ref={inputRef}
+                data-chat-input
+                value={input}
+                onChange={handleInputChange}
+                placeholder={
+                  mode === "quick-lookup"
+                    ? "Ask about FAU faculty, research, or OURI programs..."
+                    : "Ask a follow-up question about this student's options..."
+                }
+                onKeyDown={handleKeyDown}
+                rows={1}
+                disabled={isLoading}
+                className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="absolute bottom-2 right-2 flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all duration-150 hover:bg-primary/90 disabled:opacity-30 disabled:hover:bg-primary"
+                aria-label="Send message"
+              >
+                {isLoading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ArrowUp className="size-4" />
+                )}
+              </button>
+            </div>
+            <div className="mt-2 flex items-center justify-between px-1">
+              <p className="text-[11px] text-muted-foreground/60">
+                Information retrieved from FAU public resources in real time.
+                Always verify critical details.
+              </p>
+              <p className="hidden text-[11px] text-muted-foreground/40 lg:block">
+                <kbd className="rounded border border-border bg-muted/50 px-1 py-0.5 font-mono text-[10px]">
+                  Enter
+                </kbd>{" "}
+                to send,{" "}
+                <kbd className="rounded border border-border bg-muted/50 px-1 py-0.5 font-mono text-[10px]">
+                  Shift+Enter
+                </kbd>{" "}
+                for new line
+              </p>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
